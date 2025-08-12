@@ -33,35 +33,29 @@ interface Highlight {
 }
 
 const HighlightToolbar = ({ verseId, currentColor, onHighlight }: HighlightToolbarProps) => {
-  const [open, setOpen] = useState(false);
-
-  const handleHighlight = (color: string | null) => {
-    onHighlight(color);
-    setOpen(false); // Close popover after selection
-  };
+  const colors = [
+    { name: 'Yellow', value: 'bg-yellow-200' },
+    { name: 'Green', value: 'bg-green-200' },
+    { name: 'Blue', value: 'bg-blue-200' },
+    { name: 'Pink', value: 'bg-pink-200' },
+    { name: 'Remove', value: null }
+  ];
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover>
       <PopoverTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-6 w-6 ml-2"
-          onClick={(e) => e.stopPropagation()} // Prevent event bubbling
-        >
+        <Button variant="ghost" size="icon" className="h-6 w-6 ml-2">
           <Palette className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-40 p-2" align="end">
+      <PopoverContent className="w-40 p-2">
         <div className="grid grid-cols-2 gap-2">
           {colors.map((color) => (
             <Button
               key={color.value || 'remove'}
               variant="ghost"
-              className={`h-8 w-8 p-0 ${color.value || 'bg-transparent'} ${
-                currentColor === color.value ? 'ring-2 ring-primary' : ''
-              }`}
-              onClick={() => handleHighlight(color.value)}
+              className={`h-8 w-8 p-0 ${color.value || 'bg-transparent'} ${currentColor === color.value ? 'ring-2 ring-primary' : ''}`}
+              onClick={() => onHighlight(color.value)}
               aria-label={color.name}
             />
           ))}
@@ -70,7 +64,6 @@ const HighlightToolbar = ({ verseId, currentColor, onHighlight }: HighlightToolb
     </Popover>
   );
 };
-
 
 const BibleReader: React.FC<BibleReaderProps> = ({ translation = "KJV" }) => {
   const { session, supabase } = useSession();
