@@ -43,8 +43,14 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
     setIsLoading(true);
     setError(null);
     try {
+      const book = books.find(b => b.id === bookId);
+      if (!book) {
+        throw new Error(`Book with ID ${bookId} not found.`);
+      }
+      const bookName = book.name.replace(/\s/g, '+');
+
       const response = await fetch(
-        `https://bible.helloao.org/api/v1/books/${bookId}/chapters/${chapter}`
+        `https://bible-api.com/${bookName}+${chapter}?translation=${version.toLowerCase()}`
       );
       
       if (!response.ok) {
@@ -52,7 +58,7 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
       }
       
       const data = await response.json();
-      setVerses(data.data.verses);
+      setVerses(data.verses);
     } catch (err) {
       const bookName = books.find(b => b.id === bookId)?.name || `Book ${bookId}`;
       console.error(`Failed to load chapter ${chapter} of ${bookName}:`, err);
@@ -62,7 +68,7 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [books]);
+  }, [books, version]);
 
   useEffect(() => {
     fetchBooks();

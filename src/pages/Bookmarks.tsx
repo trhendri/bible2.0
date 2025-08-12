@@ -61,21 +61,27 @@ const BookmarksPage = () => {
 
       const versePromises = Object.entries(groupedByChapter).map(async ([key, bms]) => {
         const [bookId, chapter] = key.split('.');
-        const response = await fetch(`https://bible.helloao.org/api/v1/books/${bookId}/chapters/${chapter}`);
+        const book = books.find(b => b.id === Number(bookId));
+        if (!book) {
+          console.error(`Failed to find book with ID: ${bookId}`);
+          return [];
+        }
+        const bookName = book.name.replace(/\s/g, '+');
+        const response = await fetch(`https://bible-api.com/${bookName}+${chapter}`);
         if (!response.ok) {
             console.error(`Failed to fetch chapter ${key}`);
             return [];
         }
         const chapterData = await response.json();
-        const bookName = books.find(b => b.id === Number(bookId))?.name || `Book ${bookId}`;
+        const bookDisplayName = book.name;
 
         return bms.map(bm => {
             const verseNumber = parseInt(bm.verse_id.split('.')[2]);
-            const verseData = chapterData.data.verses.find((v: Verse) => v.verse === verseNumber);
+            const verseData = chapterData.verses.find((v: Verse) => v.verse === verseNumber);
             return {
                 text: verseData?.text || 'Verse text not found.',
                 verse: verseNumber,
-                bookName,
+                bookName: bookDisplayName,
                 chapter: parseInt(chapter),
                 verseId: bm.verse_id,
             };
