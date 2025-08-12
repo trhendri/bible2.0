@@ -7,17 +7,7 @@ import { ChevronLeft, ChevronRight, Loader2, BookOpen } from "lucide-react";
 import { showError } from "@/utils/toast";
 import VerseText from './VerseText';
 import BookmarkButton from './BookmarkButton';
-
-interface Verse {
-  text: string;
-  verse: number;
-}
-
-interface BookData {
-  name: string;
-  chapters: number;
-  abbreviation: string;
-}
+import { BookData, Verse } from '@/types/bible';
 
 interface BibleReaderProps {
   version?: string;
@@ -25,14 +15,14 @@ interface BibleReaderProps {
 
 const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
   const [books, setBooks] = useState<BookData[]>([]);
-  const [currentBook, setCurrentBook] = useState<string>("Genesis");
+  const [currentBookId, setCurrentBookId] = useState<number>(1);
   const [currentChapter, setCurrentChapter] = useState<number>(1);
   const [verses, setVerses] = useState<Verse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [bookAbbreviation, setBookAbbreviation] = useState<string>("GEN");
 
-  const chaptersInCurrentBook = books.find(book => book.name === currentBook)?.chapters || 0;
+  const currentBook = books.find(book => book.id === currentBookId);
+  const chaptersInCurrentBook = currentBook?.chapters || 0;
 
   const fetchBooks = useCallback(async () => {
     try {
@@ -49,18 +39,12 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
     }
   }, []);
 
-  const loadChapter = useCallback(async (book: string, chapter: number) => {
+  const loadChapter = useCallback(async (bookId: number, chapter: number) => {
     setIsLoading(true);
     setError(null);
     try {
-      const bookData = books.find(b => b.name === book);
-      if (!bookData) {
-        return;
-      }
-      const abbreviation = bookData.abbreviation;
-      
       const response = await fetch(
-        `https://bible.helloao.org/api/v1/books/${abbreviation}/chapters/${chapter}`
+        `https://bible.helloao.org/api/v1/books/${bookId}/chapters/${chapter}`
       );
       
       if (!response.ok) {
@@ -69,10 +53,10 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
       
       const data = await response.json();
       setVerses(data.data.verses);
-      setBookAbbreviation(abbreviation);
     } catch (err) {
-      console.error(`Failed to load chapter ${chapter} of ${book}:`, err);
-      showError(`Failed to load chapter ${chapter} of ${book}.`);
+      const bookName = books.find(b => b.id === bookId)?.name || `Book ${bookId}`;
+      console.error(`Failed to load chapter ${chapter} of ${bookName}:`, err);
+      showError(`Failed to load chapter ${chapter} of ${bookName}.`);
       setError((err as Error).message);
       setVerses([]);
     } finally {
@@ -85,26 +69,19 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
   }, [fetchBooks]);
 
   useEffect(() => {
-    if (currentBook && currentChapter && books.length > 0) {
-      loadChapter(currentBook, currentChapter);
+    if (currentBookId && currentChapter && books.length > 0) {
+      loadChapter(currentBookId, currentChapter);
     }
-  }, [currentBook, currentChapter, books, loadChapter]);
-
-  useEffect(() => {
-    const bookData = books.find(b => b.name === currentBook);
-    if (bookData) {
-      setBookAbbreviation(bookData.abbreviation);
-    }
-  }, [currentBook, books]);
+  }, [currentBookId, currentChapter, books, loadChapter]);
 
   const handlePrevChapter = () => {
     if (currentChapter > 1) {
       setCurrentChapter(prev => prev - 1);
     } else {
-      const currentIndex = books.findIndex(b => b.name === currentBook);
+      const currentIndex = books.findIndex(b => b.id === currentBookId);
       if (currentIndex > 0) {
         const prevBook = books[currentIndex - 1];
-        setCurrentBook(prevBook.name);
+        setCurrentBookId(prevBook.id);
         setCurrentChapter(prevBook.chapters);
       }
     }
@@ -114,10 +91,10 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
     if (currentChapter < chaptersInCurrentBook) {
       setCurrentChapter(prev => prev + 1);
     } else {
-      const currentIndex = books.findIndex(b => b.name === currentBook);
+      const currentIndex = books.findIndex(b => b.id === currentBookId);
       if (currentIndex < books.length - 1) {
         const nextBook = books[currentIndex + 1];
-        setCurrentBook(nextBook.name);
+        setCurrentBookId(nextBook.id);
         setCurrentChapter(1);
       }
     }
@@ -136,13 +113,13 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
         <div className="flex flex-col sm:flex-row gap-4 mb-6 items-center justify-center">
           <div className="w-full sm:w-64">
             <label className="block text-sm font-medium mb-1 text-left">Book</label>
-            <Select value={currentBook} onValueChange={(value) => { setCurrentBook(value); setCurrentChapter(1); }}>
+            <Select value={String(currentBookId)} onValueChange={(value) => { setCurrentBookId(Number(value)); setCurrentChapter(1); }}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a book" />
               </SelectTrigger>
               <SelectContent>
                 {books.map((book) => (
-                  <SelectItem key={book.name} value={book.name}>
+                  <SelectItem key={book.id} value={String(book.id)}>
                     {book.name}
                   </SelectItem>
                 ))}
@@ -174,17 +151,17 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
         <div className="flex justify-between items-center mb-6">
           <Button 
             onClick={handlePrevChapter} 
-            disabled={isLoading || (currentBook === books[0]?.name && currentChapter === 1)}
+            disabled={isLoading || (currentBookId === books[0]?.id && currentChapter === 1)}
             variant="outline"
           >
             <ChevronLeft className="mr-2 h-4 w-4" /> Previous
           </Button>
           <div className="text-sm text-muted-foreground">
-            {currentBook} {currentChapter}
+            {currentBook?.name} {currentChapter}
           </div>
           <Button 
             onClick={handleNextChapter} 
-            disabled={isLoading || (currentBook === books[books.length - 1]?.name && currentChapter === chaptersInCurrentBook)}
+            disabled={isLoading || (currentBookId === books[books.length - 1]?.id && currentChapter === chaptersInCurrentBook)}
             variant="outline"
           >
             Next <ChevronRight className="ml-2 h-4 w-4" />
@@ -209,7 +186,7 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
                 <VerseText key={verse.verse}>
                   <sup className="font-bold text-primary mr-2 min-w-[1.5rem] text-sm">{verse.verse}</sup>
                   <span>{verse.text}</span>
-                  <BookmarkButton verseId={`${bookAbbreviation}.${currentChapter}.${verse.verse}`} />
+                  <BookmarkButton verseId={`${currentBookId}.${currentChapter}.${verse.verse}`} />
                 </VerseText>
               ))}
             </div>
