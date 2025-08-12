@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Loader2, BookOpen } from "lucide-react";
-import { showError, showSuccess } from "@/utils/toast";
+import { showError } from "@/utils/toast";
 
 interface Verse {
   text: string;
@@ -35,7 +35,6 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
   // Function to fetch books data
   const fetchBooks = useCallback(async () => {
     try {
-      setIsLoading(true);
       const response = await fetch(`https://bible.helloao.org/api/v1/books`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -43,7 +42,6 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
       const data = await response.json();
       setBooks(data.data);
       
-      // Set abbreviation for default book
       if (data.data.length > 0) {
         const defaultBook = data.data.find((book: BookData) => book.name === "Genesis") || data.data[0];
         setBookAbbreviation(defaultBook.abbreviation);
@@ -55,19 +53,20 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
       console.error("Failed to fetch books:", err);
       showError("Failed to load Bible books.");
       setError("Failed to load books.");
-    } finally {
       setIsLoading(false);
     }
-  }, [currentBook]);
+  }, []);
 
   // Function to load chapter verses
   const loadChapter = useCallback(async (book: string, chapter: number) => {
     setIsLoading(true);
     setError(null);
     try {
-      // Get abbreviation for the book
       const bookData = books.find(b => b.name === book);
-      const abbreviation = bookData ? bookData.abbreviation : book;
+      if (!bookData) {
+        throw new Error(`Book data for "${book}" not found.`);
+      }
+      const abbreviation = bookData.abbreviation;
       
       const response = await fetch(
         `https://bible.helloao.org/api/v1/books/${abbreviation}/chapters/${chapter}`
@@ -83,7 +82,7 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
     } catch (err) {
       console.error(`Failed to load chapter ${chapter} of ${book}:`, err);
       showError(`Failed to load chapter ${chapter} of ${book}.`);
-      setError(`Failed to load chapter ${chapter} of ${book}.`);
+      setError((err as Error).message);
       setVerses([]);
     } finally {
       setIsLoading(false);
@@ -97,10 +96,10 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
 
   // Effect to load chapter when book or chapter changes
   useEffect(() => {
-    if (currentBook && currentChapter) {
+    if (currentBook && currentChapter && books.length > 0) {
       loadChapter(currentBook, currentChapter);
     }
-  }, [currentBook, currentChapter, loadChapter]);
+  }, [currentBook, currentChapter, books, loadChapter]);
 
   // Update abbreviation when book changes
   useEffect(() => {
@@ -151,7 +150,7 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
           {/* Book Dropdown */}
           <div className="w-full sm:w-64">
             <label className="block text-sm font-medium mb-1 text-left">Book</label>
-            <Select value={currentBook} onValueChange={setCurrentBook}>
+            <Select value={currentBook} onValueChange={(value) => { setCurrentBook(value); setCurrentChapter(1); }}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a book" />
               </SelectTrigger>
@@ -171,6 +170,7 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
             <Select 
               value={String(currentChapter)} 
               onValueChange={(value) => setCurrentChapter(Number(value))}
+              disabled={!chaptersInCurrentBook || isLoading}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Chapter" />
