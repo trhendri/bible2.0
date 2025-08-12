@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from '@/context/SessionProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Bookmark } from 'lucide-react';
-import { showError } from '@/utils/toast';
-import VerseText from '@/components/VerseText';
-import BookmarkButton from '@/components/BookmarkButton';
+import { Button } from '@/components/ui/button';
+import { Loader2, Bookmark, Trash2 } from 'lucide-react';
+import { showError, showSuccess } from '@/utils/toast';
 
 interface BookmarkRecord {
   id: string;
@@ -12,7 +11,8 @@ interface BookmarkRecord {
 }
 
 interface BookmarkedVerse {
-  id: string;
+  bookmarkId: string;
+  verseId: string;
   reference: string;
   text: string;
 }
@@ -37,16 +37,20 @@ const BookmarksPage = () => {
 
       const versePromises = bookmarks.map(async (bm: BookmarkRecord) => {
         try {
-          const [book, chapter, verse] = bm.verse_id.split('.');
+          const [book, chapter, verseNum] = bm.verse_id.split('.');
           const bookName = book.replace(/\s/g, '+');
-          const response = await fetch(`https://bible-api.com/${bookName}+${chapter}:${verse}`);
+          const apiReference = `${bookName}+${chapter}:${verseNum}`;
+          
+          const response = await fetch(`https://bible-api.com/${apiReference}`);
+          
           if (!response.ok) {
             console.error(`Failed to fetch verse ${bm.verse_id}`);
             return null;
           }
           const data = await response.json();
           return {
-            id: bm.verse_id,
+            bookmarkId: bm.id,
+            verseId: bm.verse_id,
             reference: data.reference,
             text: data.text,
           };
@@ -71,6 +75,23 @@ const BookmarksPage = () => {
     fetchBookmarkedVerses();
   }, [fetchBookmarkedVerses]);
 
+  const deleteBookmark = async (bookmarkId: string) => {
+    try {
+      const { error } = await supabase
+        .from('bookmarks')
+        .delete()
+        .eq('id', bookmarkId);
+
+      if (error) throw error;
+
+      setBookmarkedVerses(prev => prev.filter(v => v.bookmarkId !== bookmarkId));
+      showSuccess('Bookmark removed');
+    } catch (err) {
+      console.error('Error deleting bookmark:', err);
+      showError('Failed to remove bookmark.');
+    }
+  };
+
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
@@ -89,12 +110,20 @@ const BookmarksPage = () => {
         ) : (
           <div className="space-y-4">
             {bookmarkedVerses.map((verse) => (
-              <div key={verse.id} className="p-4 border rounded-lg">
-                <h3 className="font-semibold text-lg mb-2">{verse.reference}</h3>
-                <VerseText>
-                  <span>{verse.text}</span>
-                  <BookmarkButton verseId={verse.id} />
-                </VerseText>
+              <div key={verse.bookmarkId} className="p-4 border rounded-lg flex items-start justify-between gap-4">
+                <div className="flex-grow">
+                  <h3 className="font-semibold text-lg mb-2">{verse.reference}</h3>
+                  <p className="text-base leading-relaxed">{verse.text}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => deleteBookmark(verse.bookmarkId)}
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex-shrink-0"
+                  aria-label="Delete bookmark"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </Button>
               </div>
             ))}
           </div>
