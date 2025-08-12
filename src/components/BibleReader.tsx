@@ -3,11 +3,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Loader2, BookOpen, LogOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, BookOpen } from "lucide-react";
 import { showError } from "@/utils/toast";
 import VerseText from './VerseText';
 import BookmarkButton from './BookmarkButton';
-import { useSession } from '@/context/SessionProvider';
 
 interface Verse {
   text: string;
@@ -25,7 +24,6 @@ interface BibleReaderProps {
 }
 
 const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
-  const { supabase } = useSession();
   const [books, setBooks] = useState<BookData[]>([]);
   const [currentBook, setCurrentBook] = useState<string>("Genesis");
   const [currentChapter, setCurrentChapter] = useState<number>(1);
@@ -125,26 +123,14 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
     }
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
   return (
-    <Card className="w-full max-w-4xl mx-auto my-8 shadow-lg">
+    <Card className="w-full max-w-4xl mx-auto shadow-lg">
       <CardHeader className="text-center relative">
         <div className="flex items-center justify-center mb-2">
           <BookOpen className="h-8 w-8 text-primary mr-2" />
           <CardTitle className="text-2xl font-bold">Bible Reader</CardTitle>
         </div>
         <p className="text-sm text-muted-foreground">Version: {version}</p>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleSignOut}
-          className="absolute top-4 right-4"
-        >
-          <LogOut className="h-5 w-5" />
-        </Button>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col sm:flex-row gap-4 mb-6 items-center justify-center">

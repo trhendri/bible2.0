@@ -8,6 +8,8 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import { SessionProvider } from "./context/SessionProvider";
 import AuthGuard from "./components/AuthGuard";
+import Layout from "./components/Layout";
+import BookmarksPage from "./pages/Bookmarks";
 
 const queryClient = new QueryClient();
 
@@ -21,7 +23,10 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route element={<AuthGuard />}>
-              <Route path="/" element={<Index />} />
+              <Route element={<Layout />}>
+                <Route path="/" element={<Index />} />
+                <Route path="/bookmarks" element={<BookmarksPage />} />
+              </Route>
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
