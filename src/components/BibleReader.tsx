@@ -3,8 +3,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Loader2, BookOpen } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, BookOpen, LogOut } from "lucide-react";
 import { showError } from "@/utils/toast";
+import VerseText from './VerseText';
+import BookmarkButton from './BookmarkButton';
+import { useSession } from '@/context/SessionProvider';
 
 interface Verse {
   text: string;
@@ -22,6 +25,7 @@ interface BibleReaderProps {
 }
 
 const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
+  const { supabase } = useSession();
   const [books, setBooks] = useState<BookData[]>([]);
   const [currentBook, setCurrentBook] = useState<string>("Genesis");
   const [currentChapter, setCurrentChapter] = useState<number>(1);
@@ -32,7 +36,6 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
 
   const chaptersInCurrentBook = books.find(book => book.name === currentBook)?.chapters || 0;
 
-  // Function to fetch books data
   const fetchBooks = useCallback(async () => {
     try {
       const response = await fetch(`https://bible.helloao.org/api/v1/books`);
@@ -41,30 +44,20 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
       }
       const data = await response.json();
       setBooks(data.data);
-      
-      if (data.data.length > 0) {
-        const defaultBook = data.data.find((book: BookData) => book.name === "Genesis") || data.data[0];
-        setBookAbbreviation(defaultBook.abbreviation);
-        if (currentBook === "Genesis") {
-          setCurrentBook(defaultBook.name);
-        }
-      }
     } catch (err) {
       console.error("Failed to fetch books:", err);
       showError("Failed to load Bible books.");
       setError("Failed to load books.");
-      setIsLoading(false);
     }
   }, []);
 
-  // Function to load chapter verses
   const loadChapter = useCallback(async (book: string, chapter: number) => {
     setIsLoading(true);
     setError(null);
     try {
       const bookData = books.find(b => b.name === book);
       if (!bookData) {
-        throw new Error(`Book data for "${book}" not found.`);
+        return;
       }
       const abbreviation = bookData.abbreviation;
       
@@ -89,19 +82,16 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
     }
   }, [books]);
 
-  // Effect to fetch books on component mount
   useEffect(() => {
     fetchBooks();
   }, [fetchBooks]);
 
-  // Effect to load chapter when book or chapter changes
   useEffect(() => {
     if (currentBook && currentChapter && books.length > 0) {
       loadChapter(currentBook, currentChapter);
     }
   }, [currentBook, currentChapter, books, loadChapter]);
 
-  // Update abbreviation when book changes
   useEffect(() => {
     const bookData = books.find(b => b.name === currentBook);
     if (bookData) {
@@ -109,7 +99,6 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
     }
   }, [currentBook, books]);
 
-  // Handlers for navigation
   const handlePrevChapter = () => {
     if (currentChapter > 1) {
       setCurrentChapter(prev => prev - 1);
@@ -136,18 +125,29 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
     }
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+  };
+
   return (
     <Card className="w-full max-w-4xl mx-auto my-8 shadow-lg">
-      <CardHeader className="text-center">
+      <CardHeader className="text-center relative">
         <div className="flex items-center justify-center mb-2">
           <BookOpen className="h-8 w-8 text-primary mr-2" />
           <CardTitle className="text-2xl font-bold">Bible Reader</CardTitle>
         </div>
         <p className="text-sm text-muted-foreground">Version: {version}</p>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleSignOut}
+          className="absolute top-4 right-4"
+        >
+          <LogOut className="h-5 w-5" />
+        </Button>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col sm:flex-row gap-4 mb-6 items-center justify-center">
-          {/* Book Dropdown */}
           <div className="w-full sm:w-64">
             <label className="block text-sm font-medium mb-1 text-left">Book</label>
             <Select value={currentBook} onValueChange={(value) => { setCurrentBook(value); setCurrentChapter(1); }}>
@@ -164,7 +164,6 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
             </Select>
           </div>
 
-          {/* Chapter Selector */}
           <div className="w-full sm:w-32">
             <label className="block text-sm font-medium mb-1 text-left">Chapter</label>
             <Select 
@@ -186,7 +185,6 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
           </div>
         </div>
 
-        {/* Navigation Buttons */}
         <div className="flex justify-between items-center mb-6">
           <Button 
             onClick={handlePrevChapter} 
@@ -207,7 +205,6 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
           </Button>
         </div>
 
-        {/* Verse List */}
         <ScrollArea className="h-[50vh] w-full rounded-md border p-4 bg-gray-50 dark:bg-gray-900">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-full">
@@ -223,10 +220,11 @@ const BibleReader: React.FC<BibleReaderProps> = ({ version = "KJV" }) => {
           ) : verses.length > 0 ? (
             <div className="text-left text-lg leading-relaxed">
               {verses.map((verse) => (
-                <p key={verse.verse} className="mb-3 flex">
-                  <span className="font-bold text-primary mr-2 min-w-[2rem]">{verse.verse}</span>
+                <VerseText key={verse.verse}>
+                  <sup className="font-bold text-primary mr-2 min-w-[1.5rem] text-sm">{verse.verse}</sup>
                   <span>{verse.text}</span>
-                </p>
+                  <BookmarkButton verseId={`${bookAbbreviation}.${currentChapter}.${verse.verse}`} />
+                </VerseText>
               ))}
             </div>
           ) : (
