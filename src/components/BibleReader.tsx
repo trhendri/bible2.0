@@ -124,35 +124,42 @@ const BibleReader: React.FC<BibleReaderProps> = ({ translation = "KJV" }) => {
   };
 
   const highlightVerse = async (verseId: string, color: string | null) => {
-    if (!session?.user) {
-      showError('You must be logged in to highlight verses');
-      return;
-    }
+  if (!session?.user) {
+    showError('You must be logged in to highlight verses');
+    return;
+  }
 
-    try {
-      const { error } = await supabase
-        .from('highlights')
-        .upsert({
-          user_id: session.user.id,
-          verse_id: verseId,
-          color
-        }, {
-          onConflict: 'user_id,verse_id'
-        });
+  try {
+    // Optimistic UI update
+    setHighlights(prev => ({
+      ...prev,
+      [verseId]: color
+    }));
 
-      if (error) throw error;
+    const { error } = await supabase
+      .from('highlights')
+      .upsert({
+        user_id: session.user.id,
+        verse_id: verseId,
+        color
+      }, {
+        onConflict: 'user_id,verse_id'
+      });
 
-      setHighlights(prev => ({
-        ...prev,
-        [verseId]: color
-      }));
+    if (error) throw error;
 
-      showSuccess(color ? 'Verse highlighted' : 'Highlight removed');
-    } catch (err) {
-      showError('Failed to update highlight');
-      console.error(err);
-    }
-  };
+    showSuccess(color ? 'Verse highlighted' : 'Highlight removed');
+  } catch (err) {
+    // Revert on error
+    setHighlights(prev => ({
+      ...prev,
+      [verseId]: prev[verseId] // Revert to previous value
+    }));
+    
+    showError('Failed to update highlight');
+    console.error(err);
+  }
+};
 
   useEffect(() => {
     fetchVerses();
