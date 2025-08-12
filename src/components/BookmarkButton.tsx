@@ -16,7 +16,10 @@ const BookmarkButton = ({ verseId }: BookmarkButtonProps) => {
   const [bookmarkId, setBookmarkId] = useState<string | null>(null);
 
   const checkBookmark = useCallback(async () => {
-    if (!session?.user) return;
+    if (!session?.user) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const { data, error } = await supabase
@@ -39,6 +42,7 @@ const BookmarkButton = ({ verseId }: BookmarkButtonProps) => {
       }
     } catch (err) {
       console.error('Error checking bookmark:', err);
+      // Do not show a toast here, as it can be noisy on page load
     } finally {
       setIsLoading(false);
     }
@@ -67,12 +71,22 @@ const BookmarkButton = ({ verseId }: BookmarkButtonProps) => {
         showSuccess('Bookmark removed');
       } else {
         // Add bookmark
-        const { data, error } = await supabase
+        const { error: insertError } = await supabase
           .from('bookmarks')
-          .insert({ user_id: session.user.id, verse_id: verseId })
+          .insert({ user_id: session.user.id, verse_id: verseId });
+
+        if (insertError) throw insertError;
+
+        // After insert, fetch the new bookmark to confirm and get its ID
+        const { data, error: fetchError } = await supabase
+          .from('bookmarks')
           .select('id')
+          .eq('user_id', session.user.id)
+          .eq('verse_id', verseId)
           .single();
-        if (error) throw error;
+        
+        if (fetchError) throw fetchError;
+
         if (data) {
           setIsBookmarked(true);
           setBookmarkId(data.id);
