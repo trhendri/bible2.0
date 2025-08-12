@@ -5,39 +5,25 @@ import { Loader2, Bookmark } from 'lucide-react';
 import { showError } from '@/utils/toast';
 import VerseText from '@/components/VerseText';
 import BookmarkButton from '@/components/BookmarkButton';
-import { BookData, Verse } from '@/types/bible';
 
 interface BookmarkRecord {
   id: string;
   verse_id: string;
 }
 
-interface BookmarkedVerse extends Verse {
-  bookName: string;
-  chapter: number;
-  verseId: string;
+interface BookmarkedVerse {
+  id: string;
+  reference: string;
+  text: string;
 }
 
 const BookmarksPage = () => {
   const { session, supabase } = useSession();
   const [bookmarkedVerses, setBookmarkedVerses] = useState<BookmarkedVerse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [books, setBooks] = useState<BookData[]>([]);
-
-  const fetchBooks = useCallback(async () => {
-    try {
-      const response = await fetch(`https://bible.helloao.org/api/v1/books`);
-      if (!response.ok) throw new Error('Failed to fetch books');
-      const data = await response.json();
-      setBooks(data.data);
-    } catch (err) {
-      console.error(err);
-      showError('Could not load book list.');
-    }
-  }, []);
 
   const fetchBookmarkedVerses = useCallback(async () => {
-    if (!session?.user || books.length === 0) return;
+    if (!session?.user) return;
     setIsLoading(true);
 
     try {
@@ -49,54 +35,29 @@ const BookmarksPage = () => {
 
       if (error) throw error;
 
-      const groupedByChapter = bookmarks.reduce((acc: Record<string, BookmarkRecord[]>, bm: BookmarkRecord) => {
-        const parts = bm.verse_id.split('.');
-        if (parts.length < 2) return acc;
-        const [bookId, chapter] = parts;
-        const key = `${bookId}.${chapter}`;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(bm);
-        return acc;
-      }, {});
-
-      const versePromises = Object.entries(groupedByChapter).map(async ([key, bms]) => {
-        const [bookId, chapter] = key.split('.');
-        const book = books.find(b => b.id === Number(bookId));
-        if (!book) {
-          console.error(`Failed to find book with ID: ${bookId}`);
-          return [];
+      const versePromises = bookmarks.map(async (bm: BookmarkRecord) => {
+        try {
+          const [book, chapter, verse] = bm.verse_id.split('.');
+          const bookName = book.replace(/\s/g, '+');
+          const response = await fetch(`https://bible-api.com/${bookName}+${chapter}:${verse}`);
+          if (!response.ok) {
+            console.error(`Failed to fetch verse ${bm.verse_id}`);
+            return null;
+          }
+          const data = await response.json();
+          return {
+            id: bm.verse_id,
+            reference: data.reference,
+            text: data.text,
+          };
+        } catch (e) {
+          console.error(`Error processing bookmark ${bm.verse_id}`, e);
+          return null;
         }
-        const bookName = book.name.replace(/\s/g, '+');
-        const response = await fetch(`https://bible-api.com/${bookName}+${chapter}`);
-        if (!response.ok) {
-            console.error(`Failed to fetch chapter ${key}`);
-            return [];
-        }
-        const chapterData = await response.json();
-        const bookDisplayName = book.name;
-
-        return bms.map(bm => {
-            const verseNumber = parseInt(bm.verse_id.split('.')[2]);
-            const verseData = chapterData.verses.find((v: Verse) => v.verse === verseNumber);
-            return {
-                text: verseData?.text || 'Verse text not found.',
-                verse: verseNumber,
-                bookName: bookDisplayName,
-                chapter: parseInt(chapter),
-                verseId: bm.verse_id,
-            };
-        });
       });
 
-      const versesByChapter = await Promise.all(versePromises);
-      const sortedVerses = versesByChapter.flat().sort((a, b) => {
-        const aParts = a.verseId.split('.').map(Number);
-        const bParts = b.verseId.split('.').map(Number);
-        if (aParts[0] !== bParts[0]) return aParts[0] - bParts[0]; // Book
-        if (aParts[1] !== bParts[1]) return aParts[1] - bParts[1]; // Chapter
-        return aParts[2] - bParts[2]; // Verse
-      });
-      setBookmarkedVerses(sortedVerses);
+      const verses = (await Promise.all(versePromises)).filter(Boolean) as BookmarkedVerse[];
+      setBookmarkedVerses(verses);
 
     } catch (err) {
       console.error('Error fetching bookmarks:', err);
@@ -104,17 +65,11 @@ const BookmarksPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [session, supabase, books]);
+  }, [session, supabase]);
 
   useEffect(() => {
-    fetchBooks();
-  }, [fetchBooks]);
-
-  useEffect(() => {
-    if (books.length > 0 && session?.user) {
-        fetchBookmarkedVerses();
-    }
-  }, [books, session, fetchBookmarkedVerses]);
+    fetchBookmarkedVerses();
+  }, [fetchBookmarkedVerses]);
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -134,11 +89,11 @@ const BookmarksPage = () => {
         ) : (
           <div className="space-y-4">
             {bookmarkedVerses.map((verse) => (
-              <div key={verse.verseId} className="p-4 border rounded-lg">
-                <h3 className="font-semibold text-lg mb-2">{verse.bookName} {verse.chapter}:{verse.verse}</h3>
+              <div key={verse.id} className="p-4 border rounded-lg">
+                <h3 className="font-semibold text-lg mb-2">{verse.reference}</h3>
                 <VerseText>
                   <span>{verse.text}</span>
-                  <BookmarkButton verseId={verse.verseId} />
+                  <BookmarkButton verseId={verse.id} />
                 </VerseText>
               </div>
             ))}
